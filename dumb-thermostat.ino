@@ -2,6 +2,7 @@
 #include <OneWire.h>
 #include "DallasTemperature.h"
 #include <LiquidCrystal.h>
+#include <EEPROM.h>
 
 // Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 6
@@ -9,6 +10,13 @@
 #define Chauffage_Moins 9
 #define Boutton_Plus 7
 #define Boutton_Moins 8
+#define Battery A0 //use of constant voltage (~0.6) trought an R+diode to get estimation of Vin
+
+// Constant
+#define eeadr_consigne 0
+#define eeadr_compensation 4
+#define Battery_trigger 3.6 //trigger voltage alert
+#define V_diode 0.633 //voltage across diode
 
 // initialize the library by associating any needed LCD interface pin
 // with the arduino pin number it is connected to
@@ -16,12 +24,12 @@ const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 // consigne de température
-float consigne = 21.1;
+float consigne = 19;
 float temp_actuelle;
-float compensation = -0.5;
+float compensation = -0.5;    //calibration of my ds1820
 float hysteresis = 0.2;
 
-int i = 0;
+int i,j = 0;
 int chauffe_actif = 0;
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
@@ -56,6 +64,14 @@ void setup(void)
   digitalWrite(Chauffage_Moins, HIGH);  
   delay(100);    
   digitalWrite(Chauffage_Moins, LOW); 
+  EEPROM.get(eeadr_consigne, consigne);
+  if(isnan(consigne)){
+    consigne = 19.0;
+  }
+  EEPROM.get(eeadr_compensation, compensation);
+  if(isnan(compensation)){
+    compensation = -0.5;
+  }
 }
 
 /*
@@ -65,19 +81,44 @@ void loop(void)
 { 
   if(i>100){
     Control_Temp();
+    Control_Battery();
     i=0;
   }
   if(digitalRead(Boutton_Plus)){
     consigne +=0.1;
     lcd.clear();
     lcd.print(consigne,1);
+    EEPROM.put(eeadr_consigne, consigne);
     delay(300);
   }
   if(digitalRead(Boutton_Moins)){
     consigne -=0.1;
     lcd.clear();
     lcd.print(consigne,1);
+    EEPROM.put(eeadr_consigne, consigne);
     delay(300);
+  }
+  if(digitalRead(Boutton_Plus) and digitalRead(Boutton_Moins)){   //settings
+    j = 0;
+    while (j < 200){
+      lcd.clear();
+      lcd.print("Cal:");
+      lcd.print(compensation);
+      if(digitalRead(Boutton_Plus)){
+        compensation +=0.1;;
+        EEPROM.put(eeadr_compensation, compensation);
+        j = 0;
+        delay(300);
+      }
+      if(digitalRead(Boutton_Moins)){
+        compensation -=0.1;;
+        EEPROM.put(eeadr_compensation, compensation);
+        j = 0;
+        delay(300);
+      }
+      delay(10);
+      j++;
+    }
   }
   delay(10);
   i++;
@@ -127,6 +168,22 @@ void Control_Temp(void){
     else{
       lcd.print('_');
     }
-  }
+  } 
+}
+
+void Control_Battery(void){
+  float voltage;
+  int value = analogRead(Battery);  
+  voltage = value;
+  voltage = (V_diode * 1024) / voltage;
+  Serial.println("Battery voltage: ");
+  Serial.println(voltage);
   
+  if(voltage < Battery_trigger){
+    delay(1000);
+    lcd.clear();
+    Serial.println("ALERT V");
+    lcd.print("ALERT V");
+    delay(1000);
+  }
 }
