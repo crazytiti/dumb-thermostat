@@ -16,6 +16,7 @@
 #define eeadr_consigne 0
 #define eeadr_compensation 4
 #define Battery_trigger 3.6 //trigger voltage alert
+#define Battery_cut 3.4 //stop heating in case the module get not enought power
 #define V_diode 0.633 //voltage across diode
 
 // initialize the library by associating any needed LCD interface pin
@@ -180,10 +181,26 @@ void Control_Battery(void){
   Serial.println(voltage);
   
   if(voltage < Battery_trigger){
-    delay(1000);
-    lcd.clear();
-    Serial.println("ALERT V");
-    lcd.print("ALERT V");
-    delay(1000);
+    if(voltage <  Battery_cut){
+      digitalWrite(Chauffage_Plus, LOW);
+      digitalWrite(Chauffage_Moins, HIGH);  
+      delay(100);    
+      digitalWrite(Chauffage_Moins, LOW);  
+      delay(1000);
+      lcd.clear();
+      Serial.println("REPLACE BATTERY");
+      lcd.print("REPLACE");
+      delay(3000);
+      lcd.clear();
+      lcd.print("BATTERY");
+      delay(3000);  
+    }
+    else{
+      delay(1000);
+      lcd.clear();
+      Serial.println("ALERT V");
+      lcd.print("ALERT V");
+      delay(1000);  
+    }
   }
 }
